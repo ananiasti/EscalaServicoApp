@@ -11,7 +11,7 @@ export default function Home() {
 
       {/* Texto fixo no rodapé */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Por Ananias Caetano - v1.0</Text>
+        <Text style={styles.footerText}>Por Ananias Caetano - v1.0.0</Text>
       </View>
     </View>
   );
