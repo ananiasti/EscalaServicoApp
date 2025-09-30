@@ -2,16 +2,12 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    }
+    "types": ["expo-router"],           // IMPORTANTE
+    "paths": { "~/*": ["./*"] }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "app", "expo-env.d.ts", "app.config.ts",
+    "**/*.ts", "**/*.tsx",               // garanta que pega seus .ts/.tsx
+    ".expo/types/**/*.ts"                // inclui os tipos gerados
   ]
 }
