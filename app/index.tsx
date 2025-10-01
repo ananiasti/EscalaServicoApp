@@ -1,24 +1,28 @@
-import { Link } from 'expo-router';
 import React from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+
+type Usuario = { id: number; nome: string };
 
 export default function Home() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Bem-vindo 👋</Text>
+      {/* Conteúdo central */}
 
-      <Link href={{ pathname: '/tela1' }} asChild>
-        <Button title="Ir para Tela 1" onPress={() => {}} />
-      </Link>
 
-      <Link href={{ pathname: '/tela2' }} asChild>
-        <Button title="Ir para Tela 2" onPress={() => {}} />
-      </Link>
+      {/* Rodapé */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Por Ananias Caetano - v1.0.0</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  container: { flex: 1, backgroundColor: '#fff' },
+  content: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 },
   title: { fontSize: 20, fontWeight: '600' },
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center', alignSelf: 'stretch' },
+  input: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10 },
+  footer: { padding: 16, alignItems: 'center' },
+  footerText: { fontSize: 14, color: '#666' },
 });

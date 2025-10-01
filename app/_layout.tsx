@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Drawer } from 'expo-router/drawer';
 import React from 'react';
-import 'react-native-gesture-handler'; // ajuda o Drawer no Android
+import 'react-native-gesture-handler'; // primeira import ajuda o Drawer no Android
 
 export default function RootLayout() {
   return (
     <Drawer
-      initialRouteName="tela1"
+      initialRouteName="screens/tela1"
       screenOptions={{ headerTitleAlign: 'center' }}
     >
-      {/* "index" é a rota / (opcional) */}
+      {/* "index" corresponde a app/index.tsx (rota "/") */}
       <Drawer.Screen
         name="index"
         options={{
@@ -20,7 +20,7 @@ export default function RootLayout() {
         }}
       />
       <Drawer.Screen
-        name="tela1"
+        name="screens/tela1"
         options={{
           title: 'Tela 1',
           drawerIcon: ({ size, color }) => (
@@ -29,7 +29,7 @@ export default function RootLayout() {
         }}
       />
       <Drawer.Screen
-        name="tela2"
+        name="screens/tela2"
         options={{
           title: 'Tela 2',
           drawerIcon: ({ size, color }) => (
