@@ -6,7 +6,7 @@ import 'react-native-gesture-handler'; // primeira import ajuda o Drawer no Andr
 export default function RootLayout() {
   return (
     <Drawer
-      initialRouteName="screens/tela1"
+      initialRouteName="screens/usuarios"
       screenOptions={{ headerTitleAlign: 'center' }}
     >
       {/* "index" corresponde a app/index.tsx (rota "/") */}
@@ -20,18 +20,18 @@ export default function RootLayout() {
         }}
       />
       <Drawer.Screen
-        name="screens/tela1"
+        name="screens/usuarios"
         options={{
-          title: 'Tela 1',
+          title: 'Cadastro de Usuários',
           drawerIcon: ({ size, color }) => (
             <Ionicons name="albums-outline" size={size} color={color} />
           ),
         }}
       />
       <Drawer.Screen
-        name="screens/tela2"
+        name="screens/eventos"
         options={{
-          title: 'Tela 2',
+          title: 'Cadastro de Eventos',
           drawerIcon: ({ size, color }) => (
             <Ionicons name="list-outline" size={size} color={color} />
           ),

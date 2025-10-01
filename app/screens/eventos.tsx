@@ -1,10 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-export default function Tela2() {
+export default function Eventos() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Bem-vindo à Tela 2 🚀</Text>
+      <Text style={styles.text}>Bem-vindo à Tela de eventos 🚀</Text>
     </View>
   );
 }
