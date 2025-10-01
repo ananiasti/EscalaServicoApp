@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-type Usuario = { id: number; nome: string };
+type Usuarios = { id: number; nome: string };
 
 export default function Home() {
   return (
@@ -23,6 +23,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '600' },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', alignSelf: 'stretch' },
   input: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10 },
-  footer: { padding: 16, alignItems: 'center' },
-  footerText: { fontSize: 14, color: '#666' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, alignItems: 'center',
+            backgroundColor: '#fff', }, footerText: { fontSize: 14, color: '#666' },
 });

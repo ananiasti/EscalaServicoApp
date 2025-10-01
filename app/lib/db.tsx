@@ -1,13 +1,13 @@
 // app/lib/db.ts
 import * as SQLite from 'expo-sqlite';
 
-// Cria/abre o arquivo escala.db
+// Abre/cria o arquivo escala.db (API nova do expo-sqlite)
 export const db = SQLite.openDatabaseSync('escala.db');
 
-// Cria as tabelas (rode uma vez na inicialização do app)
 export async function initDb() {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
+    PRAGMA foreign_keys = ON;
 
     CREATE TABLE IF NOT EXISTS usuarios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,17 +32,25 @@ export async function initDb() {
   `);
 }
 
-// ---- Operações de exemplo ----
-
 // inserir usuário
 export async function addUsuario(nome: string): Promise<void> {
-  await db.runAsync('INSERT INTO usuarios (nome) VALUES (?)', [nome]);
+  await db.runAsync('INSERT INTO usuarios (nome) VALUES (?);', [nome]);
+}
+
+// remover usuário (⚠️ agora por ID!)
+export async function removerUsuario(id: number): Promise<void> {
+  await db.runAsync('DELETE FROM usuarios WHERE id = ?;', [id]);
+}
+
+// alterar usuário (nome por ID)
+export async function atualizarUsuario(id: number, nome: string): Promise<void> {
+  await db.runAsync('UPDATE usuarios SET nome = ? WHERE id = ?;', [nome, id]);
 }
 
 // listar usuários
 export async function listarUsuarios(): Promise<Array<{ id: number; nome: string }>> {
   const rows = await db.getAllAsync<{ id: number; nome: string }>(
-    'SELECT id, nome FROM usuarios ORDER BY id DESC'
+    'SELECT id, nome FROM usuarios ORDER BY id DESC;'
   );
   return rows;
 }
