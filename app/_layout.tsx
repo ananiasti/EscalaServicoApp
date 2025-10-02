@@ -24,7 +24,7 @@ export default function RootLayout() {
         options={{
           title: 'Cadastro de Usuários',
           drawerIcon: ({ size, color }) => (
-            <Ionicons name="albums-outline" size={size} color={color} />
+            <Ionicons name="people-outline" size={size} color={color} />
           ),
         }}
       />
@@ -33,7 +33,7 @@ export default function RootLayout() {
         options={{
           title: 'Cadastro de Eventos',
           drawerIcon: ({ size, color }) => (
-            <Ionicons name="list-outline" size={size} color={color} />
+            <Ionicons name="calendar-outline" size={size} color={color} />
           ),
         }}
       />
