@@ -22,7 +22,7 @@ export default function RootLayout() {
       <Drawer.Screen
         name="screens/usuarios"
         options={{
-          title: 'Cadastro de Usuários',
+          title: 'Cadastro de Operários',
           drawerIcon: ({ size, color }) => (
             <Ionicons name="people-outline" size={size} color={color} />
           ),
@@ -34,6 +34,15 @@ export default function RootLayout() {
           title: 'Cadastro de Eventos',
           drawerIcon: ({ size, color }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="screens/ausencias"
+        options={{
+          title: 'Cadastro de Ausências',
+          drawerIcon: ({ size, color }) => (
+            <Ionicons name="stop-circle-outline" size={size} color={color} />
           ),
         }}
       />

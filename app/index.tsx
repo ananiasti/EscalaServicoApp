@@ -11,7 +11,7 @@ export default function Home() {
     <View style={styles.container}>
       {/* Conteúdo central */}
       <View style={styles.content}>
-        <Text style={styles.title}>Bem-vindo!</Text>
+        <Text style={styles.title}>Bem-vindo ao MESSE!</Text>
         <Text style={styles.title}>Escala de Serviço da Paróquia São José Operário</Text>
 
         <TouchableOpacity

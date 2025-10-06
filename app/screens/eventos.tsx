@@ -1,4 +1,3 @@
-// app/screens/eventos.tsx
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
