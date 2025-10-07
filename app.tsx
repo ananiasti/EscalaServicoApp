@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { addAusencia, atualizarAusencia, Ausencia, listarAusencias, removerAusencia } from './app/lib/db';
+import { addAusencia, atualizarAusencia, Ausencia, listarAusencias, removerAusencia } from './lib/db';
 
 type Props = {
   usuarioId: number;

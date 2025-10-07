@@ -26,7 +26,7 @@ import {
   listarEventos,
   removerEvento,
   TIPOS_EVENTO
-} from '../lib/db';
+} from '../../lib/db';
 
 // helpers de hora
 function toHHMM(d: Date) {

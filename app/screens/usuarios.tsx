@@ -13,7 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { addUsuario, initDb, listarUsuarios } from '../lib/db';
+import { addUsuario, initDb, listarUsuarios } from '../../lib/db';
 
 // Tipagem das funções opcionais do DB para evitar chamadas erradas
 type DBApi = {
@@ -219,7 +219,7 @@ export default function Usuarios() {
           <View style={styles.card}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle} numberOfLines={1}>{item.nome}</Text>
-              <Text style={styles.cardSub}>ID: {item.id}</Text>
+             {/*  <Text style={styles.cardSub}>ID: {item.id}</Text>*/}
             </View>
             <View style={styles.actionsCol}>
               <Pressable style={[styles.btnSm, styles.btnOutline]} onPress={() => abrirEditar(item)}>

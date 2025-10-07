@@ -9,5 +9,5 @@
     "app", "expo-env.d.ts", "app.config.ts",
     "**/*.ts", "**/*.tsx",               // garanta que pega seus .ts/.tsx
     ".expo/types/**/*.ts"                // inclui os tipos gerados
-  ]
+, "lib"  ]
 }

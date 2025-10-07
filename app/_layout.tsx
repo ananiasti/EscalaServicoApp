@@ -46,6 +46,15 @@ export default function RootLayout() {
           ),
         }}
       />
-    </Drawer>
+            <Drawer.Screen
+        name="screens/escalas"
+        options={{
+          title: 'Fazer Escala',
+          drawerIcon: ({ size, color }) => (
+            <Ionicons name="clipboard-outline" size={size} color={color} />
+          ),
+        }}
+      />
+    </Drawer>   
   );
 }

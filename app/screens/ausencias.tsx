@@ -17,7 +17,7 @@ import {
   listarUsuarios,
   removerAusencia,
   Usuario,
-} from '../lib/db';
+} from '../../lib/db';
 
 // Formatação de data dd/mm/yyyy
 const formatarData = (d: Date) =>
@@ -155,7 +155,7 @@ export default function Ausencias() {
               }}
             >
               <Text style={{ color: usuarioSelecionado?.id===item.id ? '#fff' : '#000', fontWeight:'700' }}>{item.nome}</Text>
-              <Text style={{ color: usuarioSelecionado?.id===item.id ? '#eee' : '#666', fontSize:12 }}>ID: {item.id}</Text>
+            {/*   <Text style={{ color: usuarioSelecionado?.id===item.id ? '#eee' : '#666', fontSize:12 }}>ID: {item.id}</Text>*/}
             </Pressable>
 
             {usuarioSelecionado?.id === item.id && (
@@ -176,7 +176,7 @@ export default function Ausencias() {
                 {!showNovoPeriodo && (
                   <Pressable
                     onPress={abrirNovoPeriodo}
-                    style={{ backgroundColor:'#2563eb', padding:12, borderRadius:10, marginTop:8, alignItems:'center' }}
+                    style={{ backgroundColor:'#15803d', padding:6, borderRadius:8, marginTop:8, alignItems:'center' }}
                   >
                     <Text style={{ color:'#fff', fontWeight:'700' }}>Novo Período</Text>
                   </Pressable>
