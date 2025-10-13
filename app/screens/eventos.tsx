@@ -43,7 +43,7 @@ function fromHHMM(hhmm: string) {
   return d;
 }
 
-const LOCAIS_BASE = ['Matriz', 'Sagrado', 'Aparecida'] as const;
+const LOCAIS_BASE = ['Matriz', 'Sagrado', 'Aparecida', 'R. da Paz', 'Imaculado'] as const;
 
 export default function Eventos() {
   const [eventos, setEventos] = useState<Evento[]>([]);

@@ -1,15 +1,17 @@
 {
   "expo": {
+    "owner": "paroquia-escalas",
     "name": "EscalaServicoApp",
     "slug": "EscalaServicoApp",
-    "version": "1.0.0",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "escalaservicoapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "buildNumber": "1.0.5"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,16 +21,16 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "br.com.ananiasti.escalaservico",
+      "versionCode": 105
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      [
-        "expo-router"
-      ],
+      ["expo-router"],
       [
         "expo-splash-screen",
         {
@@ -46,6 +48,18 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0a6f08ec-fc39-457b-b5a7-ebb44206551a"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0a6f08ec-fc39-457b-b5a7-ebb44206551a"
     }
   }
 }

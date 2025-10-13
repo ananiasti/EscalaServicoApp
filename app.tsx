@@ -172,7 +172,7 @@ export default function Ausencias({ usuarioId }: Props) {
 
       <Button title={editando ? "Atualizar" : "Salvar"} onPress={salvar} />
 
-      <Text style={[styles.titulo, {marginTop: 24}]}>Ausências do Usuário</Text>
+      <Text style={[styles.titulo, {marginTop: 24}]}>Ausências do Operário</Text>
 
       <FlatList
         data={ausencias}

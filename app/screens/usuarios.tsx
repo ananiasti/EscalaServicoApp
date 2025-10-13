@@ -143,7 +143,7 @@ export default function Usuarios() {
 
   function confirmarExcluir(u: Usuario) {
     Alert.alert(
-      'Excluir usuário',
+      'Excluir Operário',
       `Deseja excluir "${u.nome}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
@@ -177,7 +177,7 @@ export default function Usuarios() {
   // --------- UI ---------
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Usuários</Text>
+      <Text style={styles.headerTitle}>Operário</Text>
 
       {/* Busca */}
       <View style={styles.row}>
@@ -233,7 +233,7 @@ export default function Usuarios() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Nenhum usuário</Text>
+            <Text style={styles.emptyTitle}>Nenhum Operário</Text>
             <Text style={styles.emptySubtitle}>Use o botão “Novo” para cadastrar.</Text>
           </View>
         }
@@ -271,7 +271,7 @@ export default function Usuarios() {
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 18, fontWeight: '800' }}>
-                  {editando ? 'Editar usuário' : 'Novo usuário'}
+                  {editando ? 'Editar Operário' : 'Novo Operário'}
                 </Text>
                 <Pressable onPress={fecharComAnimacao} accessibilityRole="button" accessibilityLabel="Fechar">
                   <Text style={{ fontSize: 16 }}>✕</Text>
