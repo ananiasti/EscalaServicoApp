@@ -192,11 +192,6 @@ export default function Ausencias() {
                 {item.nome}
               </Text>
 
-              {ausenciasMap[item.id] && calcularDiasAusentes(ausenciasMap[item.id]) > 0 && (
-                <Text style={{ color: '#ef4444', fontSize:12, marginTop:2 }}>
-                  Dias ausentes: {calcularDiasAusentes(ausenciasMap[item.id])}
-                </Text>
-              )}
             </Pressable>
 
             {usuarioSelecionado?.id === item.id && (

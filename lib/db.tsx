@@ -22,6 +22,9 @@ export type Usuario = { id: number; nome: string };
 export type Evento  = { id: number; tipo: string; local: string; dia_semana: number; hora: string };
 export type Ausencia = { id?: number; usuario_id: number; inicio: string; fim: string; motivo?: string };
 
+// >>> ENFERMOS - tipo
+export type Enfermo = { id?: number; nome: string; endereco: string; telefone_responsavel: string };
+
 export type CorLiturgicaKey = 'branco' | 'verde' | 'vermelho' | 'roxo' | 'rosea';
 export type Escala = { id: number; inicio: string; fim: string; titulo?: string | null };
 export type EscalaDia = {
@@ -160,6 +163,14 @@ export async function initDb() {
       PRIMARY KEY (dia_id, usuario_id),
       FOREIGN KEY (dia_id) REFERENCES escala_dias(id) ON DELETE CASCADE,
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    );
+
+    -- >>> ENFERMOS - criação da tabela
+    CREATE TABLE IF NOT EXISTS enfermos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      endereco TEXT NOT NULL,
+      telefone_responsavel TEXT NOT NULL
     );
   `);
 
@@ -303,4 +314,33 @@ export async function toggleUsuarioNoDia(dia_id: number, usuario_id: number) {
   } else {
     await db.runAsync('INSERT INTO escala_dia_usuarios (dia_id, usuario_id) VALUES (?, ?);', [dia_id, usuario_id]);
   }
+}
+
+/* --------- ENFERMOS: CRUD ---------- */
+export async function addEnfermo(nome: string, endereco: string, telefone: string) {
+  await initDb();
+  if (!nome?.trim() || !endereco?.trim() || !telefone?.trim()) {
+    throw new Error('Preencha nome, endereço e telefone do responsável.');
+  }
+  await db.runAsync(
+    'INSERT INTO enfermos (nome, endereco, telefone_responsavel) VALUES (?, ?, ?);',
+    [nome.trim(), endereco.trim(), telefone.trim()]
+  );
+}
+export async function listarEnfermos(): Promise<Enfermo[]> {
+  await initDb();
+  return db.getAllAsync<Enfermo>(
+    'SELECT id, nome, endereco, telefone_responsavel FROM enfermos ORDER BY nome ASC;'
+  );
+}
+export async function atualizarEnfermo(id: number, nome: string, endereco: string, telefone: string) {
+  await initDb();
+  await db.runAsync(
+    'UPDATE enfermos SET nome = ?, endereco = ?, telefone_responsavel = ? WHERE id = ?;',
+    [nome, endereco, telefone, id]
+  );
+}
+export async function removerEnfermo(id: number) {
+  await initDb();
+  await db.runAsync('DELETE FROM enfermos WHERE id = ?;', [id]);
 }

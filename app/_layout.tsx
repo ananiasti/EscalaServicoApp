@@ -40,6 +40,16 @@ export default function RootLayout() {
           }}
         />
         <Drawer.Screen
+          name="screens/enfermos"
+          options={{
+            title: 'Cadastro de Enfermos',
+            drawerIcon: ({ size, color }) => (
+              <Ionicons name="medkit-outline" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Drawer.Screen
           name="screens/eventos"
           options={{
             title: 'Cadastro de Eventos',
