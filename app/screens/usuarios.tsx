@@ -13,7 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { addUsuario, initDb, listarUsuarios } from '../lib/db';
+import { addUsuario, initDb, listarUsuarios } from '../../lib/db';
 
 // Tipagem das funções opcionais do DB para evitar chamadas erradas
 type DBApi = {
@@ -143,7 +143,7 @@ export default function Usuarios() {
 
   function confirmarExcluir(u: Usuario) {
     Alert.alert(
-      'Excluir usuário',
+      'Excluir Operário',
       `Deseja excluir "${u.nome}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
@@ -177,7 +177,7 @@ export default function Usuarios() {
   // --------- UI ---------
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Usuários</Text>
+      <Text style={styles.headerTitle}>Operário</Text>
 
       {/* Busca */}
       <View style={styles.row}>
@@ -219,7 +219,7 @@ export default function Usuarios() {
           <View style={styles.card}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle} numberOfLines={1}>{item.nome}</Text>
-              <Text style={styles.cardSub}>ID: {item.id}</Text>
+             {/*  <Text style={styles.cardSub}>ID: {item.id}</Text>*/}
             </View>
             <View style={styles.actionsCol}>
               <Pressable style={[styles.btnSm, styles.btnOutline]} onPress={() => abrirEditar(item)}>
@@ -233,7 +233,7 @@ export default function Usuarios() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Nenhum usuário</Text>
+            <Text style={styles.emptyTitle}>Nenhum Operário</Text>
             <Text style={styles.emptySubtitle}>Use o botão “Novo” para cadastrar.</Text>
           </View>
         }
@@ -271,7 +271,7 @@ export default function Usuarios() {
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 18, fontWeight: '800' }}>
-                  {editando ? 'Editar usuário' : 'Novo usuário'}
+                  {editando ? 'Editar Operário' : 'Novo Operário'}
                 </Text>
                 <Pressable onPress={fecharComAnimacao} accessibilityRole="button" accessibilityLabel="Fechar">
                   <Text style={{ fontSize: 16 }}>✕</Text>

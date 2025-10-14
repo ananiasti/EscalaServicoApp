@@ -12,7 +12,7 @@ export default function Home() {
       {/* Conteúdo central */}
       <View style={styles.content}>
         <Text style={styles.title}>Bem-vindo ao MESSE!</Text>
-        <Text style={styles.title}>Escala de Serviço da Paróquia São José Operário</Text>
+        <Text style={styles.title}>Escala de Serviço Paroquial</Text>
 
         <TouchableOpacity
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
@@ -28,7 +28,9 @@ export default function Home() {
 
       {/* Rodapé */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Por Ananias Caetano - v1.0.0</Text>
+        <Text style={styles.footerText}>
+versão 1.0.0.0
+        </Text>
       </View>
     </View>
   );

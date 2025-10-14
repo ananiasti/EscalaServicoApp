@@ -17,24 +17,28 @@ import {
   listarUsuarios,
   removerAusencia,
   Usuario,
-} from '../lib/db';
+} from '../../lib/db';
 
-// Formatação de data dd/mm/yyyy
+// --------- helpers de data ---------
 const formatarData = (d: Date) =>
   `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+
+const toKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
 export default function Ausencias() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [query, setQuery] = useState('');
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<Usuario | null>(null);
-  const [ausencias, setAusencias] = useState<Ausencia[]>([]);
+  const [ausenciasMap, setAusenciasMap] = useState<Record<number, Ausencia[]>>({});
 
   const [showNovoPeriodo, setShowNovoPeriodo] = useState(false);
-  const [inicio, setInicio] = useState(new Date());
-  const [fim, setFim] = useState(new Date());
+  const [inicio, setInicio] = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
+  const [fim, setFim] = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
   const [motivo, setMotivo] = useState('');
+  const [selecionandoFim, setSelecionandoFim] = useState(false); // 1º toque = único dia, 2º toque = período
 
-  // Inicializa DB e usuários
+  // --------- init ---------
   useEffect(() => {
     (async () => {
       await initDb();
@@ -46,11 +50,18 @@ export default function Ausencias() {
     const lista = await listarUsuarios();
     lista.sort((a,b) => a.nome.localeCompare(b.nome));
     setUsuarios(lista);
+
+    const map: Record<number, Ausencia[]> = {};
+    for (const u of lista) {
+      const aus = await listarAusencias(u.id);
+      map[u.id] = aus;
+    }
+    setAusenciasMap(map);
   }
 
   async function carregarAusencias(usuario: Usuario) {
     const lista = await listarAusencias(usuario.id);
-    setAusencias(lista);
+    setAusenciasMap(prev => ({ ...prev, [usuario.id]: lista }));
   }
 
   const filtrados = useMemo(() => {
@@ -59,13 +70,12 @@ export default function Ausencias() {
   }, [usuarios, query]);
 
   function abrirNovoPeriodo() {
-    if (!usuarioSelecionado) { Alert.alert('Selecione um usuário primeiro'); return; }
-    const hoje = new Date();
-    const defaultInicio = new Date(hoje); defaultInicio.setHours(0,0,0,0);
-    const defaultFim = new Date(hoje); defaultFim.setHours(0,0,0,0);
-    setInicio(defaultInicio);
-    setFim(defaultFim);
+    if (!usuarioSelecionado) { Alert.alert('Selecione um Operário primeiro'); return; }
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    setInicio(new Date(hoje));
+    setFim(new Date(hoje));
     setMotivo('');
+    setSelecionandoFim(false);
     setShowNovoPeriodo(true);
   }
 
@@ -98,42 +108,66 @@ export default function Ausencias() {
   }
 
   async function confirmarExcluir(a: Ausencia) {
-    Alert.alert('Excluir ausência','Deseja excluir?',[
-      { text:'Cancelar', style:'cancel' },
-      { text:'Excluir', style:'destructive', onPress: async () => {
+    Alert.alert('Excluir ausência','Deseja excluir?',[{
+      text:'Cancelar', style:'cancel'
+    },{
+      text:'Excluir', style:'destructive', onPress: async () => {
         await removerAusencia(a.id!);
         if (usuarioSelecionado) await carregarAusencias(usuarioSelecionado);
-      } }
-    ]);
+      }
+    }]);
   }
 
-  // Marca intervalo de datas no calendário
   const getMarkedDates = () => {
     const dates: Record<string, any> = {};
-    const cur = new Date(inicio);
-    while (cur <= fim) {
-      const key = cur.toISOString().split('T')[0];
-      if (key === inicio.toISOString().split('T')[0]) {
-        dates[key] = { startingDay: true, color: '#2563eb', textColor: '#fff' };
-      } else if (key === fim.toISOString().split('T')[0]) {
-        dates[key] = { endingDay: true, color: '#22c55e', textColor: '#fff' };
+    const ini = new Date(inicio); ini.setHours(0,0,0,0);
+    const end = new Date(fim);    end.setHours(0,0,0,0);
+
+    // dia único
+    if (ini.getTime() === end.getTime()) {
+      const k = toKey(ini);
+      dates[k] = { startingDay: true, endingDay: true, color: '#2563eb', textColor: '#fff' };
+      return dates;
+    }
+
+    // período
+    const cur = new Date(ini);
+    while (cur.getTime() <= end.getTime()) {
+      const k = toKey(cur);
+      if (k === toKey(ini)) {
+        dates[k] = { startingDay: true, color: '#2563eb', textColor: '#fff' };
+      } else if (k === toKey(end)) {
+        dates[k] = { endingDay: true, color: '#22c55e', textColor: '#fff' };
       } else {
-        dates[key] = { color: '#c7d2fe', textColor: '#fff' };
+        dates[k] = { color: '#c7d2fe', textColor: '#fff' };
       }
-      cur.setDate(cur.getDate()+1);
+      cur.setDate(cur.getDate() + 1);
     }
     return dates;
   };
+
+  function calcularDiasAusentes(ausencias: Ausencia[]) {
+    let total = 0;
+    ausencias.forEach(a => {
+      const ini = new Date(a.inicio); ini.setHours(0,0,0,0);
+      const end = new Date(a.fim);    end.setHours(0,0,0,0);
+      const diff = Math.floor((end.getTime() - ini.getTime()) / (1000*60*60*24)) + 1;
+      total += Math.max(diff, 0);
+    });
+    return total;
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.headerTitle}>Ausências</Text>
 
       <TextInput
-        placeholder="Buscar usuário..."
+        placeholder="Buscar Operário..."
         value={query}
         onChangeText={setQuery}
-        style={[styles.input, { height:40, fontSize:14 }]}
+        style={styles.input}
+        multiline={false}
+        numberOfLines={1}
       />
 
       <FlatList
@@ -154,13 +188,15 @@ export default function Ausencias() {
                 setShowNovoPeriodo(false);
               }}
             >
-              <Text style={{ color: usuarioSelecionado?.id===item.id ? '#fff' : '#000', fontWeight:'700' }}>{item.nome}</Text>
-              <Text style={{ color: usuarioSelecionado?.id===item.id ? '#eee' : '#666', fontSize:12 }}>ID: {item.id}</Text>
+              <Text style={{ color: usuarioSelecionado?.id===item.id ? '#fff' : '#000', fontWeight:'700' }}>
+                {item.nome}
+              </Text>
+
             </Pressable>
 
             {usuarioSelecionado?.id === item.id && (
               <View style={{ marginTop:8, padding:8, backgroundColor:'#f0f0f0', borderRadius:8 }}>
-                {ausencias.map(a=>(
+                {(ausenciasMap[item.id] || []).map(a=>(
                   <View key={a.id} style={{ marginBottom:4, padding:8, backgroundColor:'#fff', borderRadius:8 }}>
                     <Text>{`${formatarData(new Date(a.inicio))} → ${formatarData(new Date(a.fim))}`}</Text>
                     {a.motivo && <Text>Motivo: {a.motivo}</Text>}
@@ -176,54 +212,70 @@ export default function Ausencias() {
                 {!showNovoPeriodo && (
                   <Pressable
                     onPress={abrirNovoPeriodo}
-                    style={{ backgroundColor:'#2563eb', padding:12, borderRadius:10, marginTop:8, alignItems:'center' }}
+                    style={{ backgroundColor:'#15803d', padding:6, borderRadius:8, marginTop:8, alignItems:'center' }}
                   >
                     <Text style={{ color:'#fff', fontWeight:'700' }}>Novo Período</Text>
                   </Pressable>
                 )}
 
                 {showNovoPeriodo && (
-                  <View style={{ marginTop:12, padding:8, backgroundColor:'#fff', borderRadius:10 }}>
-                    <Text style={{ fontWeight:'700', marginBottom:4 }}>Selecione as datas:</Text>
+                  <View style={{ marginTop:12, padding:12, backgroundColor:'#fff', borderRadius:10 }}>
+                    <Text style={{ fontWeight:'700', marginBottom:8 }}>Selecione o período:</Text>
 
-                    <Text>Início</Text>
+                    {/* 👇 Mensagem discreta */}
+                    <Text style={{ marginBottom: 6, fontSize: 12, color: '#6b7280', textAlign: 'center' }}>
+                      👉 Toque 1x para selecionar 1 dia, ou 2× para definir um período
+                    </Text>
+
                     <Calendar
-                      onDayPress={(day: DateData) => {
-                        const [y,m,d] = day.dateString.split('-');
-                        const dt = new Date(inicio);
-                        dt.setFullYear(parseInt(y));
-                        dt.setMonth(parseInt(m)-1);
-                        dt.setDate(parseInt(d));
-                        dt.setHours(0,0,0,0);
-                        setInicio(dt);
-                        if (fim < dt) setFim(new Date(dt));
-                      }}
                       markingType="period"
                       markedDates={getMarkedDates()}
-                    />
-
-                    <Text>Fim</Text>
-                    <Calendar
                       onDayPress={(day: DateData) => {
-                        const [y,m,d] = day.dateString.split('-');
-                        const dt = new Date(fim);
-                        dt.setFullYear(parseInt(y));
-                        dt.setMonth(parseInt(m)-1);
-                        dt.setDate(parseInt(d));
+                        const [y, m, d] = day.dateString.split('-').map(n => parseInt(n, 10));
+                        const dt = new Date(y, (m - 1), d);
                         dt.setHours(0,0,0,0);
-                        setFim(dt);
-                        if (inicio > dt) setInicio(new Date(dt));
+
+                        if (!selecionandoFim) {
+                          setInicio(dt);
+                          setFim(dt);
+                          setSelecionandoFim(true);
+                          return;
+                        }
+
+                        if (dt < inicio) {
+                          setInicio(dt);
+                        } else {
+                          setFim(dt);
+                        }
+                        setSelecionandoFim(false);
                       }}
-                      markingType="period"
-                      markedDates={getMarkedDates()}
+                      style={{ marginBottom:12, height:320 }}
                     />
 
-                    <Text>Motivo</Text>
-                    <TextInput value={motivo} onChangeText={setMotivo} style={styles.input}/>
+                    <Pressable
+                      onPress={() => {
+                        const hoje = new Date(); hoje.setHours(0,0,0,0);
+                        setInicio(new Date(hoje));
+                        setFim(new Date(hoje));
+                        setSelecionandoFim(false);
+                      }}
+                      style={{ marginBottom:8, alignSelf:'flex-end' }}
+                    >
+                      <Text style={{ color:'#2563eb' }}>Limpar seleção</Text>
+                    </Pressable>
+
+                    <Text style={{ marginBottom:4 }}>Motivo</Text>
+                    <TextInput
+                      value={motivo}
+                      onChangeText={setMotivo}
+                      style={styles.input}
+                      multiline={false}
+                      numberOfLines={1}
+                    />
 
                     <Pressable
                       onPress={adicionarPeriodo}
-                      style={{ backgroundColor:'#2563eb', padding:12, borderRadius:10, marginTop:8, alignItems:'center' }}
+                      style={{ backgroundColor:'#2563eb', padding:12, borderRadius:10, marginTop:12, alignItems:'center' }}
                     >
                       <Text style={{ color:'#fff', fontWeight:'700' }}>Adicionar</Text>
                     </Pressable>
@@ -241,5 +293,14 @@ export default function Ausencias() {
 const styles = StyleSheet.create({
   container:{ flex:1, backgroundColor:'#f7f7f8', padding:16 },
   headerTitle:{ fontSize:20, fontWeight:'700' },
-  input:{ flex:1, borderWidth:1, borderColor:'#e1e1e6', borderRadius:10, padding:10, marginBottom:8 },
+  input:{
+    borderWidth:1,
+    borderColor:'#e1e1e6',
+    borderRadius:10,
+    paddingHorizontal:10,
+    paddingVertical:6,
+    marginBottom:8,
+    fontSize:14,
+    height:36,
+  },
 });
