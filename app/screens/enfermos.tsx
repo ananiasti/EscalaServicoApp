@@ -14,11 +14,19 @@ import {
 } from 'react-native';
 import { addEnfermo, atualizarEnfermo, Enfermo, initDb, listarEnfermos, removerEnfermo } from '../../lib/db';
 
+/** Formata telefone BR (10 ou 11 dígitos) */
+function formatarTelefoneBR(tel?: string) {
+  const d = (tel || '').replace(/\D/g, '');
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  if (d.length === 0) return '';
+  return tel || '';
+}
+
 export default function EnfermosScreen() {
   const [lista, setLista] = useState<Enfermo[]>([]);
   const [q, setQ] = useState('');
 
-  // modal de cadastro/edição
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<Enfermo | null>(null);
 
@@ -59,7 +67,7 @@ export default function EnfermosScreen() {
     setNome(item.nome ?? '');
     setEndereco(item.endereco ?? '');
     setTelefone(item.telefone_responsavel ?? '');
-    setNomeResp(item.nome_responsavel ?? (item as any)['nome_responsável'] ?? '');
+    setNomeResp((item as any).nome_responsavel ?? (item as any)['nome_responsável'] ?? '');
     setModalAberto(true);
   }
 
@@ -102,7 +110,7 @@ export default function EnfermosScreen() {
     const s = q.trim().toLowerCase();
     if (!s) return lista;
     return lista.filter((e) =>
-      [e.nome, e.endereco, e.telefone_responsavel, e.nome_responsavel, (e as any)['nome_responsável']]
+      [e.nome, e.endereco, e.telefone_responsavel, (e as any).nome_responsavel, (e as any)['nome_responsável']]
         .map(v => String(v ?? '').toLowerCase())
         .some(txt => txt.includes(s))
     );
@@ -134,9 +142,21 @@ export default function EnfermosScreen() {
           <View style={styles.item}>
             <View style={{ flex: 1 }}>
               <Text style={styles.itemTitle}>{item.nome}</Text>
-              <Text style={styles.itemSub}>Endereço: {item.endereco || '—'}</Text>
-              <Text style={styles.itemSub}>Telefone resp.: {item.telefone_responsavel || '—'}</Text>
-              <Text style={styles.itemSub}>Nome do responsável: {item.nome_responsavel ?? (item as any)['nome_responsável'] ?? '—'}</Text>
+
+              {/* Telefone — apenas o número formatado */}
+              <Text style={styles.itemSub}>{formatarTelefoneBR(item.telefone_responsavel) || '—'}</Text>
+
+              {/* Contato em negrito */}
+              <Text style={styles.itemSub}>
+                <Text style={styles.bold}>Contato: </Text>
+                {(item as any).nome_responsavel ?? (item as any)['nome_responsável'] ?? '—'}
+              </Text>
+
+              {/* Endereço em negrito */}
+              <Text style={styles.itemSub}>
+                <Text style={styles.bold}>Endereço: </Text>
+                {item.endereco || '—'}
+              </Text>
             </View>
             <View style={styles.actions}>
               <Pressable style={styles.btn} onPress={() => abrirEditar(item)}>
@@ -155,6 +175,7 @@ export default function EnfermosScreen() {
         }
       />
 
+      {/* Modal de cadastro/edição */}
       <Modal visible={modalAberto} transparent animationType="fade" onRequestClose={() => setModalAberto(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalWrap}>
           <View style={styles.backdrop} />
@@ -162,16 +183,37 @@ export default function EnfermosScreen() {
             <Text style={styles.h2}>{editando ? 'Editar enfermo' : 'Novo enfermo'}</Text>
 
             <Text style={styles.label}>Nome</Text>
-            <TextInput style={styles.input} value={nome} onChangeText={setNome} placeholder="Nome do enfermo" />
-
-            <Text style={styles.label}>Endereço</Text>
-            <TextInput style={styles.input} value={endereco} onChangeText={setEndereco} placeholder="Endereço" />
+            <TextInput
+              style={styles.input}
+              value={nome}
+              onChangeText={setNome}
+              placeholder="Nome do enfermo"
+            />
 
             <Text style={styles.label}>Telefone do responsável</Text>
-            <TextInput style={styles.input} value={telefone} onChangeText={setTelefone} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
+            <TextInput
+              style={styles.input}
+              value={telefone}
+              onChangeText={setTelefone}
+              placeholder="(00) 00000-0000"
+              keyboardType="phone-pad"
+            />
 
-            <Text style={styles.label}>Nome do responsável (opcional)</Text>
-            <TextInput style={styles.input} value={nomeResp} onChangeText={setNomeResp} placeholder="Ex.: João da Silva" />
+            <Text style={styles.label}>Responsável (opcional)</Text>
+            <TextInput
+              style={styles.input}
+              value={nomeResp}
+              onChangeText={setNomeResp}
+              placeholder="Ex.: João da Silva"
+            />
+
+            <Text style={styles.label}>Endereço</Text>
+            <TextInput
+              style={styles.input}
+              value={endereco}
+              onChangeText={setEndereco}
+              placeholder="Endereço"
+            />
 
             <View style={[styles.row, { justifyContent: 'flex-end', marginTop: 12, gap: 8 }]}>
               <Pressable style={styles.btn} onPress={() => setModalAberto(false)}>
@@ -205,15 +247,16 @@ const styles = StyleSheet.create({
   btnPrimary: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#2563eb' },
   btnPrimaryText: { color: '#fff', fontWeight: '700' },
 
-  // 🔧 adicionado para corrigir o erro
-  btnDanger: { backgroundColor: '#dc2626', borderColor: '#dc2626' },
-
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 12, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#eee' },
   itemTitle: { fontSize: 16, fontWeight: '800' },
   itemSub: { color: '#333', marginTop: 2 },
   actions: { flexDirection: 'row', gap: 8 },
 
+  bold: { fontWeight: '700' },
+
   modalWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)', zIndex: 1 },
   modalCard: { width: '92%', borderRadius: 16, backgroundColor: '#fff', padding: 14, zIndex: 2 },
+
+  btnDanger: { backgroundColor: '#dc2626', borderColor: '#dc2626' },
 });
