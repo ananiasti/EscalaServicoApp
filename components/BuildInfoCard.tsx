@@ -50,7 +50,8 @@ export default function BuildInfoCard() {
         Informações da versão
       </Text>
       <Text></Text>     
-      <Text>Versão do MESSE: 1.0.0.1 </Text>     
+      <Text>Versão do MESSE: 1.0.0.3 </Text>  
+      <Text></Text>     
       <Text>Sistema: {Platform.OS === 'ios' ? 'iOS' : 'Android'}</Text>
       <Text>Versão (app.json): {appVersion}</Text>
       <Text>Versão nativa: {nativeVersion}</Text>
@@ -59,6 +60,7 @@ export default function BuildInfoCard() {
       <Text>Runtime (OTA): {runtimeVersion}</Text>
       <Text>Update ID: {updateId}</Text>
       <Text>Origem: {isEmbedded ? 'Embarcada' : 'OTA'} {isEmergency ? '(Emergência)' : ''}</Text>
+      <Text></Text>  
       <Text>Autor: Ananias Caetano </Text>
       <Pressable
         onPress={checkNow}
