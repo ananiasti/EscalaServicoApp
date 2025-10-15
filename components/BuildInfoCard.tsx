@@ -50,7 +50,7 @@ export default function BuildInfoCard() {
         Informações da versão
       </Text>
       <Text></Text>     
-      <Text>Versão do MESSE: 1.0.0.0 </Text>     
+      <Text>Versão do MESSE: 1.0.0.1 </Text>     
       <Text>Sistema: {Platform.OS === 'ios' ? 'iOS' : 'Android'}</Text>
       <Text>Versão (app.json): {appVersion}</Text>
       <Text>Versão nativa: {nativeVersion}</Text>

@@ -39,6 +39,16 @@ export type EscalaDia = {
   evento_id: number | null; cor: CorLiturgicaKey | null; observacao: string | null;
 };
 
+/* >>> Visitas de enfermos (dias persistidos) */
+export type EscalaEnfermoDia = {
+  id: number;
+  escala_id: number;
+  data: string;            // YYYY-MM-DD
+  hora: string | null;
+  observacao: string | null;
+  enfermo_id: number;
+};
+
 /** Constantes / helpers */
 export const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
 export type DiaSemanaRotulo = typeof DIAS_SEMANA[number];
@@ -197,7 +207,27 @@ export async function initDb() {
       telefone_responsavel TEXT NOT NULL,
       nome_responsavel TEXT
     );
-  `); // <- aqui era ']);' por engano
+
+    /* >>> Visitas de ENFERMOS (persistência por escala) */
+    CREATE TABLE IF NOT EXISTS escala_enfermos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      escala_id INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      hora TEXT,
+      observacao TEXT,
+      enfermo_id INTEGER NOT NULL,
+      FOREIGN KEY (escala_id) REFERENCES escalas(id) ON DELETE CASCADE,
+      FOREIGN KEY (enfermo_id) REFERENCES enfermos(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS escala_enfermo_usuarios (
+      enfermo_dia_id INTEGER NOT NULL,
+      usuario_id INTEGER NOT NULL,
+      PRIMARY KEY (enfermo_dia_id, usuario_id),
+      FOREIGN KEY (enfermo_dia_id) REFERENCES escala_enfermos(id) ON DELETE CASCADE,
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    );
+  `);
 
   // migrações brandas
   if (!(await hasColumn('escalas','titulo'))) await db.execAsync(`ALTER TABLE escalas ADD COLUMN titulo TEXT;`);
@@ -280,7 +310,7 @@ export async function removerEscala(id: number) {
   await initDb(); await db.runAsync('DELETE FROM escalas WHERE id = ?;', [id]); // ON DELETE CASCADE remove filhos
 }
 
-/* --------- Escala: dias ---------- */
+/* --------- Escala: dias (EVENTOS) ---------- */
 type NovoDia = { data: string; hora: string | null; evento_id: number | null; cor: CorLiturgicaKey | null; observacao: string | null };
 export async function adicionarDiasEscala(escala_id: number, dias: NovoDia[]) {
   await initDb(); await db.execAsync('BEGIN;');
@@ -327,7 +357,7 @@ export async function atualizarDiaEscala(dia_id: number, patch: { cor?: CorLitur
 }
 export async function excluirDia(dia_id: number) { await initDb(); await db.runAsync('DELETE FROM escala_dias WHERE id = ?;', [dia_id]); }
 
-/* --------- Ligações dia ↔ usuário ---------- */
+/* --------- Ligações dia (evento) ↔ usuário ---------- */
 export async function toggleUsuarioNoDia(dia_id: number, usuario_id: number) {
   await initDb();
   const existe = await db.getAllAsync<{ c: number }>(
@@ -396,4 +426,81 @@ export async function atualizarEnfermo(id: number, nome: string, endereco: strin
 export async function removerEnfermo(id: number) {
   await initDb();
   await db.runAsync('DELETE FROM enfermos WHERE id = ?;', [id]);
+}
+
+/* --------- Escala: ENFERMOS (visitas) ---------- */
+type NovoDiaEnfermo = { data: string; hora: string | null; observacao: string | null; enfermo_id: number };
+
+export async function adicionarDiasEscalaEnfermos(escala_id: number, dias: NovoDiaEnfermo[]) {
+  await initDb();
+  await db.execAsync('BEGIN;');
+  try {
+    for (const d of dias) {
+      await db.runAsync(
+        'INSERT INTO escala_enfermos (escala_id, data, hora, observacao, enfermo_id) VALUES (?, ?, ?, ?, ?);',
+        [escala_id, d.data, d.hora, d.observacao, d.enfermo_id]
+      );
+    }
+    await db.execAsync('COMMIT;');
+  } catch (e) {
+    await db.execAsync('ROLLBACK;');
+    throw e;
+  }
+}
+
+/** Lista os dias de enfermos da escala + visitantes (usuarios) */
+export async function listarDiasDaEscalaEnfermos(escala_id: number): Promise<Array<EscalaEnfermoDia & { visitantes: Usuario[] }>> {
+  await initDb();
+  const dias = await db.getAllAsync<EscalaEnfermoDia>(
+    `SELECT id, escala_id, data, hora, observacao, enfermo_id
+       FROM escala_enfermos
+      WHERE escala_id = ?
+      ORDER BY data ASC;`,
+    [escala_id]
+  );
+
+  const links = await db.getAllAsync<{ enfermo_dia_id: number; id: number; nome: string }>(
+    `SELECT eu.enfermo_dia_id, u.id, u.nome
+       FROM escala_enfermo_usuarios eu
+       JOIN escala_enfermos ed ON ed.id = eu.enfermo_dia_id
+       JOIN usuarios u        ON u.id  = eu.usuario_id
+      WHERE ed.escala_id = ?
+      ORDER BY u.nome ASC;`,
+    [escala_id]
+  );
+
+  const map: Record<number, Usuario[]> = {};
+  for (const r of links) (map[r.enfermo_dia_id] ||= []).push({ id: r.id, nome: r.nome });
+
+  return dias.map(d => ({ ...d, visitantes: map[d.id] ?? [] }));
+}
+
+export async function atualizarDiaEscalaEnfermo(id: number, patch: { hora?: string | null; observacao?: string | null }) {
+  await initDb();
+  const sets: string[] = [];
+  const params: any[] = [];
+  if (patch.hora !== undefined) { sets.push('hora = ?'); params.push(patch.hora); }
+  if (patch.observacao !== undefined) { sets.push('observacao = ?'); params.push(patch.observacao); }
+  if (!sets.length) return;
+  params.push(id);
+  await db.runAsync(`UPDATE escala_enfermos SET ${sets.join(', ')} WHERE id = ?;`, params);
+}
+
+export async function excluirDiaEnfermo(id: number) {
+  await initDb();
+  await db.runAsync('DELETE FROM escala_enfermos WHERE id = ?;', [id]); // cascade remove vínculos
+}
+
+/** Alterna vínculo usuário ↔ dia de enfermo */
+export async function toggleUsuarioNoDiaEnfermo(enfermo_dia_id: number, usuario_id: number) {
+  await initDb();
+  const existe = await db.getAllAsync<{ c: number }>(
+    'SELECT 1 AS c FROM escala_enfermo_usuarios WHERE enfermo_dia_id = ? AND usuario_id = ? LIMIT 1;',
+    [enfermo_dia_id, usuario_id]
+  );
+  if (existe.length) {
+    await db.runAsync('DELETE FROM escala_enfermo_usuarios WHERE enfermo_dia_id = ? AND usuario_id = ?;', [enfermo_dia_id, usuario_id]);
+  } else {
+    await db.runAsync('INSERT INTO escala_enfermo_usuarios (enfermo_dia_id, usuario_id) VALUES (?, ?);', [enfermo_dia_id, usuario_id]);
+  }
 }

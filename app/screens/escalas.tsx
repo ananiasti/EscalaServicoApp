@@ -84,6 +84,8 @@ type DiaEnfermoMem = {
   __tipo: 'ENFERMO';
 };
 type DiaItem = (EscalaDia & { usuarios: Usuario[] }) | DiaEnfermoMem;
+type SepItem = { __sep: true };
+type ListItem = DiaItem | SepItem;
 
 export default function EscalaScreen() {
   // ====== Modo de edição ======
@@ -105,7 +107,7 @@ export default function EscalaScreen() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [enfermosLista, setEnfermosLista] = useState<DBEnfermo[]>([]);
 
-  // filtros
+  // filtros (apenas para eventos)
   const [tipoSel, setTipoSel] = useState<string>('Todos');
   const [localSel, setLocalSel] = useState<string>('Todos');
 
@@ -122,6 +124,9 @@ export default function EscalaScreen() {
   const [diaEditando, setDiaEditando] = useState<DiaItem | null>(null);
   const [observacaoDraft, setObservacaoDraft] = useState('');
   const [corDraft, setCorDraft] = useState<EscalaDia['cor']>(null);
+
+  // seleção “staged” para ENFERMOS (aplica só ao salvar)
+  const [stagedSelection, setStagedSelection] = useState<Set<number> | null>(null);
 
   // busca usuários (no modal)
   const [usuarioQuery, setUsuarioQuery] = useState('');
@@ -165,7 +170,6 @@ export default function EscalaScreen() {
     })();
   }, []);
 
-  // ================= NOVO: helper para recarregar eventos + usuários + enfermos =================
   async function recarregarBase() {
     const [evs, us, enf] = await Promise.all([
       listarEventos(),
@@ -177,17 +181,15 @@ export default function EscalaScreen() {
     setEnfermosLista(enf);
   }
 
-  // ================= ALTERADO: recarrega base + ausências ao focar a tela =================
   useFocusEffect(
     useCallback(() => {
       (async () => {
-        await recarregarBase();    // garante usuários/eventos/enfermos atualizados
-        await carregarAusencias(); // mantém ausências coerentes
+        await recarregarBase();
+        await carregarAusencias();
       })();
     }, [])
   );
 
-  // ================= ALTERADO: recarrega também ao voltar para foreground =================
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
@@ -198,7 +200,7 @@ export default function EscalaScreen() {
     return () => sub.remove();
   }, []);
 
-  // ===== Carrega ausências de todos os usuários (sempre que chamado) =====
+  // ===== Carrega ausências =====
   async function carregarAusencias() {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const dbAny: any = require('../../lib/db');
@@ -246,7 +248,8 @@ export default function EscalaScreen() {
     setFim(isoToDate(e.fim));
     const lista = await listarDiasDaEscala(e.id);
     setDiasEventos(lista);
-    await carregarDiasEnfermosDB(e.id); // carrega enfermos se houver no DB
+    // ENFERMOS: gerar 1x por escala (data = fim)
+    gerarDiasEnfermosUmaVezPorEscala(e.id, e.fim);
   }
 
   async function selecionarEscala(e: Escala) {
@@ -255,7 +258,6 @@ export default function EscalaScreen() {
     setShareEnabled(true);
   }
 
-  // exclusão de escala (seletor)
   function confirmarExcluirEscala(e: Escala) {
     Alert.alert('Excluir escala', 'Tem certeza que deseja excluir esta escala?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -283,7 +285,6 @@ export default function EscalaScreen() {
     }
   }
 
-  // calendário
   const markedDates = useMemo(() => buildMarked(tmpInicioISO, tmpFimISO), [tmpInicioISO, tmpFimISO]);
 
   function onDayPress(d: DateData) {
@@ -319,7 +320,6 @@ export default function EscalaScreen() {
     setPeriodoModal(false);
   }
 
-  // Cancelar criação
   async function cancelarGeracao() {
     setEditMode(false);
     setTituloNovo('');
@@ -342,10 +342,8 @@ export default function EscalaScreen() {
     }
   }
 
-  // Botão principal
   async function onPressGerar() {
     if (!editMode) {
-      // entrar em modo de criação
       setEditMode(true);
       setShareEnabled(false);
       setPeriodoSelecionado(false);
@@ -362,7 +360,6 @@ export default function EscalaScreen() {
     await handleGerar();
   }
 
-  // gerar nova escala (grava no DB)
   async function handleGerar() {
     if (!periodoSelecionado) {
       Alert.alert('Período obrigatório', 'Selecione o período para gerar a escala.');
@@ -386,17 +383,13 @@ export default function EscalaScreen() {
     const fimISO = toISO(fim);
     const datas = rangeDatasISO(inicioISO, fimISO);
 
-    // 1) cria escala
     const id = await criarEscala(inicioISO, fimISO);
     setEscalaId(id);
 
     const titulo = tituloNovo.trim();
-    if (titulo) {
-      try { await atualizarEscalaTitulo(id, titulo); } catch {}
-    }
+    if (titulo) { try { await atualizarEscalaTitulo(id, titulo); } catch {} }
     setEscalaTitulo(titulo || null);
 
-    // 2) gera DIAS de EVENTOS
     const diasGerados: DiaGerado[] = [];
     for (const dataISO of datas) {
       const dow = isoToDate(dataISO).getDay(); // 0=Dom..6=Sáb
@@ -427,97 +420,41 @@ export default function EscalaScreen() {
     const lista = await listarDiasDaEscala(id);
     setDiasEventos(lista);
 
-    // 3) gera DIAS de ENFERMOS — SOMENTE DOMINGOS
-    await gerarDiasEnfermosSomenteDomingo(id, datas);
+    // ENFERMOS — uma vez por escala (data = fimISO), em memória
+    gerarDiasEnfermosUmaVezPorEscala(id, fimISO);
 
-    // terminou a criação
     setEditMode(false);
     setShareEnabled(true);
   }
 
-  /* ========= ENFERMOS ========= */
+  /* ========= ENFERMOS (somente memória) ========= */
 
   function enfermoNome(id: number | undefined) {
     return (id == null) ? 'Enfermo' : (enfermosLista.find(e => e.id === id)?.nome ?? `Enfermo #${id}`);
-  }
-  function enfermoTelefone(id: number | undefined) {
-    const enf: any = id == null ? null : enfermosLista.find(e => e.id === id);
-    // aceita tanto telefone_responsavel quanto telefone_responsável
-    return enf ? (enf.telefone_responsavel ?? enf['telefone_responsável'] ?? '') : '';
   }
   function isDiaEnfermo(d: DiaItem): d is DiaEnfermoMem {
     return (d as DiaEnfermoMem).__tipo === 'ENFERMO';
   }
   function titleFor(d: DiaItem) {
-    return isDiaEnfermo(d) ? `Visita • ${enfermoNome(d.enfermo_id)}` : eventoLabel((d as any).evento_id);
+    return isDiaEnfermo(d) ? `${enfermoNome(d.enfermo_id)}` : eventoLabel((d as any).evento_id);
   }
 
-  async function gerarDiasEnfermosSomenteDomingo(escala_id: number, datas: string[]) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const dbAny: any = require('../../lib/db');
-
-    const datasDomingo = datas.filter((d) => isoToDate(d).getDay() === 0);
-
-    if (datasDomingo.length === 0 || enfermosLista.length === 0) {
-      setDiasEnfermos([]);
-      return;
-    }
-
-    if (typeof dbAny.adicionarDiasEscalaEnfermos === 'function') {
-      await dbAny.adicionarDiasEscalaEnfermos(
-        escala_id,
-        enfermosLista.flatMap((enf) =>
-          datasDomingo.map((data) => ({
-            data,
-            hora: null,
-            observacao: null,
-            enfermo_id: enf.id,
-          }))
-        )
-      );
-      await carregarDiasEnfermosDB(escala_id);
-      return;
-    }
-
-    // fallback em memória (IDs string “enf-<enfermoId>-<data>”)
-    const mem: DiaEnfermoMem[] = [];
-    for (const enf of enfermosLista) {
-      for (const data of datasDomingo) {
-        mem.push({
-          id: `enf-${enf.id ?? 'x'}-${data}`,
-          escala_id,
-          data,
-          hora: null,
-          observacao: null,
-          enfermo_id: enf.id,
-          usuarios: [],
-          __tipo: 'ENFERMO',
-        });
-      }
-    }
+  function gerarDiasEnfermosUmaVezPorEscala(escala_id: number, dataISO: string) {
+    if (!enfermosLista.length) { setDiasEnfermos([]); return; }
+    const mem: DiaEnfermoMem[] = enfermosLista.map(enf => ({
+      id: `enf-${enf.id ?? 'x'}-${dataISO}`,
+      escala_id,
+      data: dataISO,
+      hora: null,
+      observacao: null,
+      enfermo_id: enf.id,
+      usuarios: [],
+      __tipo: 'ENFERMO',
+    }));
     setDiasEnfermos(mem);
   }
 
-  async function carregarDiasEnfermosDB(escala_id: number) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const dbAny: any = require('../../lib/db');
-    if (typeof dbAny.listarDiasDaEscalaEnfermos !== 'function') { setDiasEnfermos([]); return; }
-    const lista = await dbAny.listarDiasDaEscalaEnfermos(escala_id);
-    const norm: DiaEnfermoMem[] = (Array.isArray(lista) ? lista : []).map((d: any) => ({
-      id: d.id,
-      escala_id: d.escala_id ?? escala_id,
-      data: String(d.data).slice(0,10),
-      hora: d.hora ?? null,
-      observacao: d.observacao ?? null,
-      enfermo_id: d.enfermo_id,
-      usuarios: Array.isArray(d.visitantes) ? d.visitantes : (Array.isArray(d.usuarios) ? d.usuarios : []),
-      __tipo: 'ENFERMO',
-    }));
-    // mantém só domingos
-    setDiasEnfermos(norm.filter(x => isoToDate(x.data).getDay() === 0));
-  }
-
-  /* ========= FILTROS (chips) ========= */
+  /* ========= FILTROS / ORDENAÇÃO ========= */
   const tiposDisponiveis = useMemo(
     () => ['Todos', ...Array.from(new Set(eventos.map(e => e.tipo))).sort((a, b) => a.localeCompare(b))],
     [eventos]
@@ -527,7 +464,6 @@ export default function EscalaScreen() {
     [eventos]
   );
 
-  // -------- Ordenação base (por data e hora) dos dias de EVENTOS --------
   const diasEventosOrdenados = useMemo(() => {
     const arr = diasEventos.slice();
     arr.sort((a, b) => {
@@ -539,7 +475,6 @@ export default function EscalaScreen() {
     return arr;
   }, [diasEventos]);
 
-  // -------- Ordenação ENFERMOS: data → nome (serão listados após eventos) --------
   const diasEnfermosOrdenados = useMemo(() => {
     const arr = diasEnfermos.slice();
     arr.sort((a, b) => {
@@ -551,8 +486,7 @@ export default function EscalaScreen() {
     return arr;
   }, [diasEnfermos, enfermosLista]);
 
-  // -------- Lista UNIFICADA: 1) todos os eventos 2) depois todos os enfermos --------
-  const diasUnificados: DiaItem[] = useMemo(() => {
+  const diasUnificados: ListItem[] = useMemo(() => {
     const eventosFiltrados = diasEventosOrdenados.filter(d => {
       const ev = eventos.find(e => e.id === d.evento_id);
       if (!ev) return false;
@@ -560,7 +494,12 @@ export default function EscalaScreen() {
       const okLocal = (localSel === 'Todos' || ev.local === localSel);
       return okTipo && okLocal;
     });
-    return [...eventosFiltrados, ...diasEnfermosOrdenados];
+
+    if (diasEnfermosOrdenados.length === 0) return eventosFiltrados;
+    if (eventosFiltrados.length === 0) return diasEnfermosOrdenados;
+
+    const sep: SepItem = { __sep: true };
+    return [...eventosFiltrados, sep, ...diasEnfermosOrdenados];
   }, [diasEventosOrdenados, diasEnfermosOrdenados, eventos, tipoSel, localSel]);
 
   // helpers
@@ -589,6 +528,12 @@ export default function EscalaScreen() {
     let dataAtual: string | null = null;
 
     for (const item of diasUnificados as any[]) {
+      if (item?.__sep) {
+        linhas.push('');
+        linhas.push('*Enfermos*');
+        continue;
+      }
+
       const d = isoToDate(item.data);
       const dataFmt = formatarData(d);
 
@@ -600,9 +545,12 @@ export default function EscalaScreen() {
 
       const nomeEvento = titleFor(item as DiaItem);
       const hora = item.hora ?? '--:--';
-
-      // Mantém formato padrão. Se quiser, dá para incluir o telefone nos enfermos aqui também.
       linhas.push(`- ${hora} — ${nomeEvento}`);
+
+      const presentes = (item.usuarios || []) as Usuario[];
+      for (const u of presentes) {
+        linhas.push(`  • ${u.nome}`);
+      }
     }
 
     if (linhas[linhas.length - 1] !== '') linhas.push('');
@@ -626,7 +574,7 @@ export default function EscalaScreen() {
 
   const isDisabled = !editMode;
 
-  // -------- lista de usuários no modal (sem ausentes **no dia em edição**) --------
+  /* -------- lista de usuários no modal (considera staged p/ ENFERMOS) -------- */
   const usuariosFiltradosOrdenados = useMemo(() => {
     const q = usuarioQuery.trim().toLowerCase();
     const dataRef = diaEditando ? (diaEditando as any).data?.slice(0,10) : '';
@@ -640,17 +588,18 @@ export default function EscalaScreen() {
       ? pool.filter(u => u.nome.toLowerCase().includes(q))
       : pool.slice();
 
-    const selected = new Set<number>((diaEditando?.usuarios ?? []).map(u => u.id));
+    const selectedSet =
+      stagedSelection ?? new Set<number>((diaEditando?.usuarios ?? []).map(u => u.id));
 
     base.sort((a, b) => {
-      const aSel = selected.has(a.id) ? 1 : 0;
-      const bSel = selected.has(b.id) ? 1 : 0;
-      if (aSel !== bSel) return bSel - aSel; // selecionados primeiro
+      const aSel = selectedSet.has(a.id) ? 1 : 0;
+      const bSel = selectedSet.has(b.id) ? 1 : 0;
+      if (aSel !== bSel) return bSel - aSel;
       return a.nome.localeCompare(b.nome, 'pt-BR');
     });
 
     return base;
-  }, [usuarios, usuarioQuery, diaEditando, ausenciasMap]);
+  }, [usuarios, usuarioQuery, diaEditando, ausenciasMap, stagedSelection]);
 
   /* ========= Handlers de edição/remoção/atribuição ========= */
   function abrirEditarDia(d: DiaItem) {
@@ -658,24 +607,38 @@ export default function EscalaScreen() {
     setCorDraft(isDiaEnfermo(d) ? null : ((d as any).cor ?? null));
     setObservacaoDraft((d as any).observacao ?? '');
     setUsuarioQuery('');
+    if (isDiaEnfermo(d)) {
+      setStagedSelection(new Set((d.usuarios ?? []).map(u => u.id)));
+    } else {
+      setStagedSelection(null);
+    }
     setModalVisivel(true);
     void carregarAusencias();
   }
 
+  function toggleUsuarioStaged(uId: number) {
+    if (!stagedSelection) return;
+    setStagedSelection(prev => {
+      const next = new Set(prev ?? []);
+      if (next.has(uId)) next.delete(uId); else next.add(uId);
+      return next;
+    });
+  }
+
   async function salvarEdicaoDia() {
     if (!diaEditando) return;
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const dbAny: any = require('../../lib/db');
 
     if (isDiaEnfermo(diaEditando)) {
-      if (typeof dbAny.atualizarDiaEscalaEnfermo === 'function') {
-        try {
-          await dbAny.atualizarDiaEscalaEnfermo(diaEditando.id, { observacao: observacaoDraft });
-          await carregarDiasEnfermosDB(diaEditando.escala_id ?? (escalaId as number));
-        } catch {}
-      } else {
+      // aplica observação (memória)
+      setDiasEnfermos(prev =>
+        prev.map(it => it.id === diaEditando.id ? { ...it, observacao: observacaoDraft } : it)
+      );
+
+      // aplica seleção staged (memória)
+      if (stagedSelection) {
+        const novosUsuarios = usuarios.filter(u => stagedSelection.has(u.id));
         setDiasEnfermos(prev =>
-          prev.map(it => it.id === diaEditando.id ? { ...it, observacao: observacaoDraft } : it)
+          prev.map(d => d.id === diaEditando.id ? { ...d, usuarios: novosUsuarios } : d)
         );
       }
     } else {
@@ -690,6 +653,7 @@ export default function EscalaScreen() {
     }
 
     setModalVisivel(false);
+    setStagedSelection(null);
   }
 
   async function removerDia(item: DiaItem) {
@@ -701,18 +665,8 @@ export default function EscalaScreen() {
         text: 'Excluir',
         style: 'destructive',
         onPress: async () => {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const dbAny: any = require('../../lib/db');
-
           if (isDiaEnfermo(item)) {
-            if (typeof dbAny.excluirDiaEnfermo === 'function') {
-              try {
-                await dbAny.excluirDiaEnfermo(item.id);
-                await carregarDiasEnfermosDB(item.escala_id ?? (escalaId as number));
-              } catch {}
-            } else {
-              setDiasEnfermos(prev => prev.filter(d => d.id !== item.id));
-            }
+            setDiasEnfermos(prev => prev.filter(d => d.id !== item.id));
           } else {
             await excluirDia((item as EscalaDia).id);
             if (escalaId) {
@@ -727,44 +681,20 @@ export default function EscalaScreen() {
 
   async function toggleUsuarioDia(item: DiaItem, usuario_id: number) {
     if (editMode) return;
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const dbAny: any = require('../../lib/db');
 
     if (isDiaEnfermo(item)) {
-      if (typeof dbAny.toggleUsuarioNoDiaEnfermo === 'function') {
-        try {
-          await dbAny.toggleUsuarioNoDiaEnfermo(item.id, usuario_id);
-          await carregarDiasEnfermosDB(item.escala_id ?? (escalaId as number));
-          if (diaEditando && diaEditando.id === item.id) {
-            const atualizada = diasEnfermos.find(d => d.id === item.id);
-            if (atualizada) setDiaEditando(atualizada);
-          }
-        } catch {}
-      } else {
-        setDiasEnfermos(prev =>
-          prev.map(d => {
-            if (d.id !== item.id) return d;
-            const existe = d.usuarios?.some(u => u.id === usuario_id);
-            const novo = existe
-              ? d.usuarios.filter(u => u.id !== usuario_id)
-              : [...(d.usuarios ?? []), (usuarios.find(u => u.id === usuario_id) as Usuario)];
-            return { ...d, usuarios: novo };
-          })
-        );
-        if (diaEditando && diaEditando.id === item.id) {
-          const d = diasEnfermos.find(x => x.id === item.id);
-          if (d) setDiaEditando({ ...d });
-        }
-      }
-    } else {
-      await toggleUsuarioNoDia((item as EscalaDia).id, usuario_id);
-      if (escalaId) {
-        const lista = await listarDiasDaEscala(escalaId);
-        setDiasEventos(lista);
-        if (diaEditando && diaEditando.id === (item as EscalaDia).id) {
-          const atualizado = lista.find((d: { id: number; }) => d.id === (item as EscalaDia).id);
-          if (atualizado) setDiaEditando(atualizado as DiaItem);
-        }
+      // Marcação imediata no modal (staged). Aplica de fato só ao salvar.
+      toggleUsuarioStaged(usuario_id);
+      return;
+    }
+
+    await toggleUsuarioNoDia((item as EscalaDia).id, usuario_id);
+    if (escalaId) {
+      const lista = await listarDiasDaEscala(escalaId);
+      setDiasEventos(lista);
+      if (diaEditando && diaEditando.id === (item as EscalaDia).id) {
+        const atualizado = lista.find((d: { id: number; }) => d.id === (item as EscalaDia).id);
+        if (atualizado) setDiaEditando(atualizado as DiaItem);
       }
     }
   }
@@ -781,20 +711,20 @@ export default function EscalaScreen() {
           <Text style={styles.label}>Período</Text>
 
           <Pressable
-            disabled={isDisabled}
+            disabled={!editMode}
             style={[
               styles.input, styles.periodoBtn, { flex: 1.3 },
-              isDisabled && styles.inputDisabled
+              !editMode && styles.inputDisabled
             ]}
             onPress={abrirPeriodoModal}
           >
             <Text
-              style={[styles.periodoText, isDisabled && styles.textDisabled]}
+              style={[styles.periodoText, !editMode && styles.textDisabled]}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.9}
             >
-              {isDisabled
+              {!editMode
                 ? '—'
                 : (periodoSelecionado
                     ? `${formatarData(inicio)} a ${formatarData(fim)}`
@@ -807,12 +737,11 @@ export default function EscalaScreen() {
             onPress={onPressGerar}
           >
             <Text style={styles.btnPrimaryText}>
-              {isDisabled ? 'Gerar' : 'Confirmar'}
+              {!editMode ? 'Gerar' : 'Confirmar'}
             </Text>
           </Pressable>
         </View>
 
-        {/* Cancelar (mostra só quando estou criando) */}
         {editMode && (
           <View style={[styles.row, { justifyContent: 'flex-end', marginTop: 6 }]}>
             <Pressable
@@ -824,15 +753,14 @@ export default function EscalaScreen() {
           </View>
         )}
 
-        {/* Título (opcional) */}
         <View style={[styles.row, { alignItems: 'center' }]}>
           <Text style={styles.label}>Título</Text>
           <TextInput
-            style={[styles.input, isDisabled && styles.inputDisabled]}
-            placeholder={isDisabled ? '—' : 'Título da escala (opcional)'}
+            style={[styles.input, !editMode && styles.inputDisabled]}
+            placeholder={!editMode ? '—' : 'Título da escala (opcional)'}
             value={tituloNovo}
             onChangeText={setTituloNovo}
-            editable={!isDisabled}
+            editable={editMode}
           />
         </View>
 
@@ -884,7 +812,7 @@ export default function EscalaScreen() {
         {/* ações topo */}
         <View style={styles.headerActionsTop}>
           <Pressable
-            disabled={!shareEnabled || editMode} // não compartilhar durante PRÉVIA
+            disabled={!shareEnabled || editMode}
             style={[
               styles.btnShareIcon,
               (!shareEnabled || editMode) && { backgroundColor: '#9ca3af' }
@@ -896,7 +824,7 @@ export default function EscalaScreen() {
           </Pressable>
 
           <Pressable
-            disabled={editMode} // não abre seletor durante a geração
+            disabled={editMode}
             style={[styles.btnSelect, editMode && { backgroundColor: '#9ca3af' }]}
             onPress={async () => { await recarregarEscalas(); setSeletorAberto(true); }}
           >
@@ -918,29 +846,41 @@ export default function EscalaScreen() {
         )}
       </View>
 
-      {/* Lista UNIFICADA: eventos primeiro, depois enfermos */}
-      <FlatList
+      {/* Lista UNIFICADA: eventos primeiro, depois enfermos (com separador) */}
+      <FlatList<ListItem>
         data={diasUnificados}
-        keyExtractor={(item: any) =>
-          String(item.id ?? `${item.data}-${isDiaEnfermo(item) ? `enf-${(item as DiaEnfermoMem).enfermo_id}` : (item as any).evento_id}`)
+        keyExtractor={(item: any, idx) =>
+          item?.__sep ? `sep-enfermos` :
+          String(item.id ?? `${item.data}-${(item as any).evento_id ?? (item as any).enfermo_id}-${idx}`)
         }
         contentContainerStyle={{ padding: 16, gap: 8 }}
         renderItem={({ item }) => {
-          const d = isoToDate(item.data);
+          if ((item as SepItem).__sep) {
+            return (
+              <View style={styles.separatorRow}>
+                <View style={styles.separatorLine} />
+                <Text style={styles.separatorText}>Enfermos</Text>
+                <View style={styles.separatorLine} />
+              </View>
+            );
+          }
+
+          const it = item as DiaItem;
+          const d = isoToDate(it.data);
           const dow = d.getDay();
 
-          // conta apenas operários PRESENTES
-          const presentes = (item.usuarios || []).filter((u: Usuario) => !isUsuarioAusenteNoDia(u.id, item.data.slice(0,10)));
+          const presentes = (it.usuarios || []).filter((u: Usuario) => !isUsuarioAusenteNoDia(u.id, it.data.slice(0,10)));
           const assignedCount = presentes.length;
 
-          const hasColor = !isDiaEnfermo(item) && !!(item as any).cor;
+          const hasColor = !isDiaEnfermo(it) && !!(it as any).cor;
 
           return (
             <View style={styles.item}>
               <View style={{ flex: 1 }}>
                 <View style={styles.titleRow}>
-                  {/* ícone: X vermelho se sem operários PRESENTES; senão bolinha (verde p/ enfermo) */}
-                  {assignedCount === 0 ? (
+                  {isDiaEnfermo(it) ? (
+                    <MaterialIcons name="medical-services" size={18} color="#16a34a" />
+                  ) : assignedCount === 0 ? (
                     <View style={styles.statusBox}>
                       <MaterialIcons name="person-off" size={16} color="#dc2626" />
                     </View>
@@ -949,49 +889,43 @@ export default function EscalaScreen() {
                       style={[
                         styles.colorDot,
                         {
-                          backgroundColor: isDiaEnfermo(item) ? '#16a34a' : corHex((item as any).cor ?? null),
+                          backgroundColor: corHex((it as any).cor ?? null),
                           borderWidth: hasColor ? 1.5 : 0,
                         },
                       ]}
                     />
                   )}
 
-                  <Text style={styles.itemTitle}>{titleFor(item)}</Text>
+                  <Text style={styles.itemTitle}>{titleFor(it)}</Text>
                 </View>
 
-                {/* Subtítulo:
-                    - Eventos: dia • data • hora
-                    - Enfermos: Telefone do responsável */}
-                {isDiaEnfermo(item) ? (
+                {isDiaEnfermo(it) ? null : (
                   <Text style={styles.itemSub}>
-                    {enfermoTelefone((item as any).enfermo_id)
-                      ? `Tel.: ${enfermoTelefone((item as any).enfermo_id)}`
-                      : 'Tel.: —'}
-                  </Text>
-                ) : (
-                  <Text style={styles.itemSub}>
-                    {diaLabel(dow)} • {formatarData(d)}{(item as any).hora ? ` • ${(item as any).hora}` : ''}
+                    {diaLabel(dow)} • {formatarData(d)}{(it as any).hora ? ` • ${(it as any).hora}` : ''}
                   </Text>
                 )}
 
+                {/* Usuários escalados: tópicos */}
                 {assignedCount > 0 && (
-                  <Text style={styles.itemSub}>
-                    <Text style={styles.bold}>Operários:</Text> {presentes.map((u: Usuario) => u.nome).join(', ')}
-                  </Text>
+                  <View style={{ marginTop: 2 }}>
+                    {presentes.map((u: Usuario) => (
+                      <Text key={u.id} style={styles.itemSub}>{'\u2022'} {u.nome}</Text>
+                    ))}
+                  </View>
                 )}
 
-                {(item as any).observacao ? (
+                {(it as any).observacao ? (
                   <Text style={styles.itemSub}>
-                    <Text style={styles.bold}>Obs:</Text> {(item as any).observacao}
+                    <Text style={styles.bold}>Obs:</Text> {(it as any).observacao}
                   </Text>
                 ) : null}
               </View>
 
               <View style={styles.actions}>
-                <Pressable style={[styles.btn, editMode && styles.inputDisabled]} disabled={editMode} onPress={() => abrirEditarDia(item as DiaItem)}>
+                <Pressable style={[styles.btn, !editMode && null, editMode && styles.inputDisabled]} disabled={editMode} onPress={() => abrirEditarDia(it)}>
                   <Text style={styles.btnText}>Editar</Text>
                 </Pressable>
-                <Pressable style={[styles.btn, styles.btnDanger, editMode && { opacity: 0.5 }]} disabled={editMode} onPress={() => removerDia(item as DiaItem)}>
+                <Pressable style={[styles.btn, styles.btnDanger, editMode && { opacity: 0.5 }]} disabled={editMode} onPress={() => removerDia(it)}>
                   <Text style={[styles.btnText, { color: '#fff' }]}>Excluir</Text>
                 </Pressable>
               </View>
@@ -1027,7 +961,7 @@ export default function EscalaScreen() {
       </Modal>
 
       {/* MODAL: editar dia */}
-      <Modal visible={modalVisivel} transparent animationType="fade" onRequestClose={() => setModalVisivel(false)}>
+      <Modal visible={modalVisivel} transparent animationType="fade" onRequestClose={() => { setModalVisivel(false); setStagedSelection(null); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalWrap}>
           <View style={styles.backdrop} />
           <View style={styles.modalCard}>
@@ -1037,7 +971,6 @@ export default function EscalaScreen() {
                 : 'Editar dia'}
             </Text>
 
-            {/* cores (somente para EVENTOS normais) */}
             {!diaEditando || isDiaEnfermo(diaEditando) ? null : (
               <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
                 {CORES_LITURGICAS.map(c => {
@@ -1058,7 +991,6 @@ export default function EscalaScreen() {
               </View>
             )}
 
-            {/* observação */}
             <View style={{ marginTop: 12 }}>
               <Text style={[styles.label, styles.labelAuto]} numberOfLines={1}>
                 Observação
@@ -1072,7 +1004,6 @@ export default function EscalaScreen() {
               />
             </View>
 
-            {/* busca de usuários */}
             <Text style={[styles.label, styles.labelAuto, { marginTop: 12 }]} numberOfLines={1}>
               Atribuir Operário
             </Text>
@@ -1083,16 +1014,20 @@ export default function EscalaScreen() {
               style={[styles.input, { marginBottom: 6 }]}
             />
 
-            {/* lista de usuários (sem ausentes no dia em edição) */}
             <View style={{ maxHeight: 260, borderWidth: 1, borderColor: '#ddd', borderRadius: 12, overflow: 'hidden' }}>
               <FlatList
                 data={usuariosFiltradosOrdenados}
                 keyExtractor={(u) => String(u.id)}
                 renderItem={({ item: u }) => {
-                  const selected = !!diaEditando?.usuarios?.find(x => x.id === u.id);
+                  const selectedSet = stagedSelection ?? new Set<number>((diaEditando?.usuarios ?? []).map(x => x.id));
+                  const selected = selectedSet.has(u.id);
+                  const onPress =
+                    isDiaEnfermo(diaEditando as DiaItem)
+                      ? () => toggleUsuarioStaged(u.id)
+                      : () => toggleUsuarioDia(diaEditando as DiaItem, u.id);
                   return (
                     <TouchableOpacity
-                      onPress={() => diaEditando && toggleUsuarioDia(diaEditando as DiaItem, u.id)}
+                      onPress={onPress}
                       style={styles.userRow}
                       activeOpacity={0.6}
                     >
@@ -1106,9 +1041,8 @@ export default function EscalaScreen() {
               />
             </View>
 
-            {/* ações */}
             <View style={[styles.row, { justifyContent: 'flex-end', marginTop: 12, gap: 8 }]}>
-              <Pressable style={styles.btn} onPress={() => setModalVisivel(false)}>
+              <Pressable style={styles.btn} onPress={() => { setModalVisivel(false); setStagedSelection(null); }}>
                 <Text style={styles.btnText}>Cancelar</Text>
               </Pressable>
               <Pressable style={styles.btnPrimary} onPress={salvarEdicaoDia}>
@@ -1229,27 +1163,15 @@ const styles = StyleSheet.create({
 
   muted: { color: '#666' },
 
-  escalaInfo: {
-    marginTop: 2,
-    flexShrink: 1,
-    maxWidth: '100%',
-  },
+  escalaInfo: { marginTop: 2, flexShrink: 1, maxWidth: '100%' },
 
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 12, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#eee' },
 
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   colorDot: { width: 12, height: 12, borderRadius: 999 },
 
-  // Ícone de status (X vermelho quando sem operários PRESENTES)
-  statusBox: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#dc2626',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  // ícone de “sem operário” somente para EVENTO sem pessoas
+  statusBox: { width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: '#dc2626', alignItems: 'center', justifyContent: 'center' },
 
   itemTitle: { fontSize: 16, fontWeight: '800' },
   itemSub: { color: '#333', marginTop: 2 },
@@ -1281,4 +1203,9 @@ const styles = StyleSheet.create({
   btnMini: { paddingVertical: 6, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1 },
   btnMiniText: { fontWeight: '800' },
   btnMiniDanger: { backgroundColor: '#dc2626', borderColor: '#dc2626' },
+
+  // separador “Enfermos”
+  separatorRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, marginBottom: 4, paddingHorizontal: 2 },
+  separatorLine: { flex: 1, height: 1, backgroundColor: '#e5e7eb' },
+  separatorText: { fontWeight: '800', color: '#374151' },
 });
