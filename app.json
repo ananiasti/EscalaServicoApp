@@ -11,7 +11,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "1.0.5"
+      "buildNumber": "1.0.5",
+      "bundleIdentifier": "y",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +34,9 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      ["expo-router"],
+      [
+        "expo-router"
+      ],
       [
         "expo-splash-screen",
         {
@@ -49,17 +55,17 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "0a6f08ec-fc39-457b-b5a7-ebb44206551a"
-      }
-    },
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "42125441-21b7-43b8-8340-a00704d415a8"
+      }
+    },
     "updates": {
-      "url": "https://u.expo.dev/0a6f08ec-fc39-457b-b5a7-ebb44206551a"
+      "url": "https://u.expo.dev/42125441-21b7-43b8-8340-a00704d415a8"
     }
   }
 }
